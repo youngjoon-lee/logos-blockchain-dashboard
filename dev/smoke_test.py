@@ -89,10 +89,13 @@ def main():
         check(all(n[F["height"]] is not None for n in nodes if n[F["canonical"]]), "canonical blocks have heights")
         check(tree["tip"] and tree["lib"], "tip and LIB known")
 
-        tip = tree["tip"]
-        blk = get(dash_port, "/api/block/" + tip)
-        check(blk.get("block", {}).get("header", {}).get("id") == tip, "block detail for the tip")
-        check(blk["meta"]["is_tip"] and blk["meta"]["canonical"], "tip flagged canonical")
+        # A block a few heights below the tip: the mock keeps producing blocks
+        # and short reorgs, so the tip itself can change between requests.
+        top = max(n[F["height"]] for n in nodes if n[F["canonical"]])
+        deep = next(n[F["id"]] for n in nodes if n[F["canonical"]] and n[F["height"]] == top - 5)
+        blk = get(dash_port, "/api/block/" + deep)
+        check(blk.get("block", {}).get("header", {}).get("id") == deep, "block detail")
+        check(blk["meta"]["canonical"] and blk["meta"]["height"] == top - 5, "block flagged canonical with height")
 
         rows = get(dash_port, "/api/blocks")
         check(len(rows["rows"]) == st["blocks"]["n"] or len(rows["rows"]) > 50, "blocks endpoint rows")
