@@ -1546,6 +1546,8 @@ def make_handler(app):
                     threading.Thread(target=app.collector.backfill_once, daemon=True).start()
                     return self.json({"started": True})
                 return self.static(u.path)
+            except ValueError as e:  # bad input from the client
+                self.json({"error": str(e)}, 400)
             except Exception as e:
                 traceback.print_exc()
                 self.json({"error": str(e)}, 500)

@@ -1,5 +1,7 @@
 # Logos blockchain dashboard
 
+[![CI](https://github.com/youngjoon-lee/logos-blockchain-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/youngjoon-lee/logos-blockchain-dashboard/actions/workflows/ci.yml)
+
 A web dashboard for a [logos-blockchain](https://github.com/logos-blockchain/logos-blockchain) node, either started by `logosctl` or run directly as `logos-blockchain-node`. It runs next to the node (e.g. on a Raspberry Pi), collects everything it can from the node's HTTP API, log files and config into a local SQLite database, and serves it as a web page.
 
 It is a single Python 3 script with no dependencies: no pip, no build step, no CDN.

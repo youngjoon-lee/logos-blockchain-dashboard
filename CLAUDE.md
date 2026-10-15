@@ -56,11 +56,19 @@ A dashboard for one logos-blockchain node (target version 0.3.x). It runs next t
 
 ## Testing
 
-No unit test suite yet. What has been used:
+CI (`.github/workflows/ci.yml`, Python 3.9/3.11/3.13) runs these on every push and PR; run them locally before committing:
 
 ```bash
-python3 -m py_compile dashboard.py logrules.py
+python3 -m py_compile dashboard.py logrules.py dev/*.py
 for f in static/*.js; do node --input-type=module --check < "$f"; done
+python3 dev/smoke_test.py   # ~15 s: synthetic logs + mock node + real dashboard, ~30 API checks
+```
+
+`dev/smoke_test.py` asserts collection (blocks, forks, heights, tip/LIB), log rules and field extraction, phase intervals, YAML-only config listing, secret hiding, static files. Extend it when adding features. Keep the code Python 3.9 compatible (no `match`, `str.removeprefix`, `X | Y` types); `ast.parse(src, feature_version=(3, 9))` catches syntax slips.
+
+Manual checks used so far:
+
+```bash
 
 # mock node + synthetic logs (forks, reorgs, rotated/.gz logs, ANSI)
 python3 dev/gen_logs.py /tmp/lbd/data/node1 18080

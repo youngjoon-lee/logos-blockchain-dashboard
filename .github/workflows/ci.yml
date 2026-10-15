@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.9: oldest supported (Raspberry Pi OS bullseye); 3.11: Pi OS bookworm.
+        python: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Compile Python
+        run: python -m py_compile dashboard.py logrules.py dev/*.py
+
+      - name: Check JavaScript syntax
+        run: for f in static/*.js; do node --input-type=module --check < "$f"; done
+
+      - name: Smoke test (mock node + synthetic logs + dashboard)
+        run: python dev/smoke_test.py
+        timeout-minutes: 5
