@@ -203,7 +203,7 @@ async function renderOverview() {
     { name: "arrival", get: (n) => (n[F.t_ms] && slotTime(n[F.slot]) ? ((n[F.t_ms] - slotTime(n[F.slot])) / 1000).toFixed(2) + "s" + (n[F.time_src] === "stream" ? " ≈" : "") : ""), cls: "num" },
     { name: "txs", get: (n) => n[F.txs], cls: "num" },
     { name: "status", get: (n) => (n[F.id] === tree.tip ? "tip" : n[F.canonical] ? "canonical" : "fork") + (state.myBlocks?.has(n[F.id]) ? " ★" : "") },
-    { name: "id", get: (n) => short(n[F.id], 12), cls: "mono nowrap" },
+    { name: "id", get: (n) => idCell(n[F.id]), cls: "nowrap" },
   ], recent, (n) => selectBlock(n[F.id]));
 
   const warns = await api(`/api/events?level=WARN,ERROR&limit=200&since=${s}`);
@@ -386,8 +386,8 @@ function renderTree() {
   table($("#tree-reorgs"), [
     { name: "time", get: (r) => fmtDateTime(r.ts) },
     { name: "depth (abandoned blocks)", get: (r) => r.depth, cls: "num" },
-    { name: "old tip", get: (r) => short(r.old, 12), cls: "msg" },
-    { name: "new tip", get: (r) => short(r.new, 12), cls: "msg" },
+    { name: "old tip", get: (r) => idCell(r.old), cls: "nowrap" },
+    { name: "new tip", get: (r) => idCell(r.new), cls: "nowrap" },
     { name: "slot", get: (r) => r.slot, cls: "num" },
   ], d.reorgs, (r) => selectBlock(r.new));
 }
@@ -533,11 +533,64 @@ function kvBlock(container, pairs) {
   container.appendChild(kv);
 }
 
+// Copies `value` without triggering the click handler of the row it sits in.
+// navigator.clipboard needs a secure context (https or localhost); the
+// dashboard is often opened over plain http on a LAN, so fall back to execCommand.
+async function copyText(value) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch (e) { /* fall through */ }
+  const ta = document.createElement("textarea");
+  ta.value = value;
+  ta.setAttribute("readonly", "");
+  ta.style.cssText = "position:fixed;top:-1000px;opacity:0";
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  ta.remove();
+  return ok;
+}
+
+export function copyButton(value, title = "Copy full id") {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "copy-btn";
+  b.title = title;
+  b.setAttribute("aria-label", title);
+  b.textContent = "⧉";
+  b.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const ok = await copyText(value);
+    b.textContent = ok ? "✓" : "✗";
+    b.classList.toggle("copied", ok);
+    setTimeout(() => { b.textContent = "⧉"; b.classList.remove("copied"); }, 1200);
+  });
+  return b;
+}
+
+// Short id (full id on hover) plus a copy button.
+export function idCell(id, n = 12) {
+  const span = text("span", null, "id-cell");
+  if (!id) return span;
+  const t = text("span", short(id, n), "mono");
+  t.title = id;
+  span.append(t, copyButton(id));
+  return span;
+}
+
 function blockLink(id, label) {
+  const span = text("span", null, "id-cell");
   const a = text("a", label || short(id, 12));
   a.addEventListener("click", () => selectBlock(id));
   a.className = "mono";
-  return a;
+  a.title = id;
+  span.append(a, copyButton(id));
+  return span;
 }
 
 async function selectBlock(id) {
@@ -559,7 +612,9 @@ async function selectBlock(id) {
   if (state.myBlocks?.has(id)) head.appendChild(text("span", "★ proposed by this node", "badge"));
   panel.appendChild(head);
   panel.appendChild(text("h4", "Block"));
-  panel.appendChild(text("div", id, "id"));
+  const idLine = text("div", null, "id");
+  idLine.append(document.createTextNode(id + " "), copyButton(id));
+  panel.appendChild(idLine);
   const st = slotTime(h.slot);
   kvBlock(panel, [
     ["height", m.height],
@@ -600,7 +655,7 @@ async function selectBlock(id) {
     panel.appendChild(text("h4", `Transactions (${b.transactions.length})`));
     const wrap = text("div", null, "table-wrap short");
     table(wrap, [
-      { name: "tx", get: (tx) => (tx.mantle_tx?.hash || "").slice(0, 10) + "…", cls: "mono nowrap" },
+      { name: "tx", get: (tx) => idCell(tx.mantle_tx?.hash, 8), cls: "nowrap" },
       { name: "ops", get: (tx) => (tx.mantle_tx?.ops || []).map((o) => opName(o.opcode)).join(", ") },
       { name: "out value", get: (tx) => fmtInt((tx.mantle_tx?.ops || []).flatMap((o) => o.payload?.outputs || []).reduce((a, o) => a + (o.value || 0), 0)), cls: "num" },
       { name: "proofs", get: (tx) => (tx.ops_proofs || []).map((p) => Object.keys(p || {})[0]).join(", ") },
@@ -629,7 +684,7 @@ async function selectBlock(id) {
       return { tx: body?.tx_hash || "", kind, val, raw: e };
     });
     table(wrap, [
-      { name: "tx", get: (x) => x.tx.slice(0, 10) + (x.tx ? "…" : ""), cls: "mono nowrap" },
+      { name: "tx", get: (x) => idCell(x.tx, 8), cls: "nowrap" },
       { name: "event", get: (x) => x.kind },
       { name: "value", get: (x) => (x.val != null ? fmtInt(x.val) : ""), cls: "num" },
     ], evRows);
@@ -729,7 +784,7 @@ function initTreeControls() {
 export const ctx = {
   api, since, css, lineChart, scatter, stackedBars, histogram, bucketize, bucketRange, pickBucket, fmtNum, fmtTime,
   fmtDateTime, fmtClock, TZ,
-  slotTime, snap, selectBlock, table, text, OP_NAMES,
+  slotTime, snap, selectBlock, table, text, OP_NAMES, idCell,
   get status() { return state.status; },
 };
 

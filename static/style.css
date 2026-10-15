@@ -253,3 +253,11 @@ td.mono { font-family: var(--mono); font-size: 11.5px; }
 #tree-svg .strip-inferred { stroke: var(--text-secondary); stroke-dasharray: 3 2; stroke-width: 1; }
 #tree-svg .epoch-line { stroke: var(--series-1); stroke-opacity: 0.5; stroke-width: 1; stroke-dasharray: 2 4; }
 td:first-child { white-space: nowrap; }
+
+.id-cell { display: inline-flex; align-items: center; gap: 4px; }
+.copy-btn {
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+  border-radius: 4px; font-size: 11px; line-height: 1; padding: 2px 4px; cursor: pointer; flex: none;
+}
+.copy-btn:hover { background: var(--surface-2); color: var(--text-primary); }
+.copy-btn.copied { color: var(--good); border-color: var(--good); }

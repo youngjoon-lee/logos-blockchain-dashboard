@@ -469,7 +469,7 @@ export const PLOT_TABS = {
       render: async (el, ctx) => eventTable(el, ctx, await events(ctx, ["block_proposed", "own_block_failed", "leadership_proof_failure"]), [
         { name: "time", get: (r) => ctx.fmtDateTime(r.ts) },
         { name: "kind", get: (r) => r.kind },
-        { name: "block", get: (r) => (r.fields.block_id || "").slice(0, 16), cls: "msg" },
+        { name: "block", get: (r) => ctx.idCell(r.fields.block_id), cls: "nowrap" },
         { name: "txs", get: (r) => r.fields.txs ?? "", cls: "num" },
         { name: "removed", get: (r) => r.fields.removed ?? "", cls: "num" },
       ]),
