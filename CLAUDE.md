@@ -53,6 +53,7 @@ A dashboard for one logos-blockchain node (target version 0.3.x). It runs next t
 - Untrusted strings (log messages, API data) go into the DOM via `textContent`, never `innerHTML`.
 - Plots that need DEBUG logs say so in their subtitle and empty state (`DEBUG_HINT`).
 - Keep `README.md` in sync with flags and data sources.
+- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): summary` with types such as `feat`, `fix`, `docs`, `ci`, `refactor`, `test`, `chore`; optional scopes like `ui`, `logs`, `collector`. One type per commit: split a commit that mixes a fix and a feature. No `Co-Authored-By` lines.
 
 ## Testing
 
