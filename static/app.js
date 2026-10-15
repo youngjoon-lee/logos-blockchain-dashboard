@@ -208,10 +208,10 @@ async function renderOverview() {
 
   const warns = await api(`/api/events?level=WARN,ERROR&limit=200&since=${s}`);
   table($("#ov-warn"), [
-    { name: "time", get: (r) => fmtDateTime(r.ts) },
+    { name: "time", get: (r) => timeCell(r.ts) },
     { name: "level", get: (r) => lvl(r.level) },
     { name: "target", get: (r) => r.target },
-    { name: "message", get: (r) => r.msg, cls: "msg" },
+    { name: "message", get: (r) => msgCell(r.msg), cls: "msg" },
   ], warns);
 
   const h = st.health;
@@ -573,6 +573,16 @@ export function copyButton(value, title = "Copy full id") {
   return b;
 }
 
+// Text plus a copy button that copies `value` (defaults to the text).
+export function copyCell(display, value = display, title = "Copy") {
+  const span = text("span", null, "copy-cell");
+  span.append(text("span", display), copyButton(value, title));
+  return span;
+}
+
+const timeCell = (ts) => copyCell(fmtDateTime(ts), fmtDateTime(ts, true), "Copy time");
+const msgCell = (msg) => copyCell(msg, msg, "Copy message");
+
 // Short id (full id on hover) plus a copy button.
 export function idCell(id, n = 12) {
   const span = text("span", null, "id-cell");
@@ -695,9 +705,9 @@ async function selectBlock(id) {
     panel.appendChild(text("h4", `Log lines mentioning this block (${r.log_mentions.length})`));
     const wrap = text("div", null, "table-wrap short");
     table(wrap, [
-      { name: "time", get: (x) => fmtClock(x.ts) },
+      { name: "time", get: (x) => copyCell(fmtClock(x.ts), fmtDateTime(x.ts, true), "Copy time") },
       { name: "kind", get: (x) => x.kind },
-      { name: "message", get: (x) => x.msg, cls: "msg" },
+      { name: "message", get: (x) => msgCell(x.msg), cls: "msg" },
     ], r.log_mentions);
     panel.appendChild(wrap);
   }
@@ -784,7 +794,7 @@ function initTreeControls() {
 export const ctx = {
   api, since, css, lineChart, scatter, stackedBars, histogram, bucketize, bucketRange, pickBucket, fmtNum, fmtTime,
   fmtDateTime, fmtClock, TZ,
-  slotTime, snap, selectBlock, table, text, OP_NAMES, idCell,
+  slotTime, snap, selectBlock, table, text, OP_NAMES, idCell, copyCell,
   get status() { return state.status; },
 };
 
@@ -863,7 +873,7 @@ async function renderLogs() {
     { name: "count", get: (r) => fmtNum(r.n), cls: "num" },
     { name: "level", get: (r) => lvl(r.level) },
     { name: "target", get: (r) => r.target },
-    { name: "message template", get: (r) => r.template, cls: "msg" },
+    { name: "message template", get: (r) => copyCell(r.template, r.example, "Copy an example message"), cls: "msg" },
     { name: "last", get: (r) => timeAgo(r.last_ts) },
   ], ls.templates, (r) => { $("#ev-grep").value = r.example.slice(0, 40); searchEvents(); });
   await searchEvents();
@@ -877,11 +887,11 @@ async function searchEvents() {
   if ($("#ev-kind").value) q.set("kinds", $("#ev-kind").value);
   const rows = await api("/api/events?" + q);
   table($("#ev-table"), [
-    { name: "time", get: (r) => fmtDateTime(r.ts) },
+    { name: "time", get: (r) => timeCell(r.ts) },
     { name: "level", get: (r) => lvl(r.level) },
     { name: "kind", get: (r) => r.kind },
     { name: "target", get: (r) => r.target },
-    { name: "message", get: (r) => r.msg, cls: "msg" },
+    { name: "message", get: (r) => msgCell(r.msg), cls: "msg" },
   ], rows, (r) => { const m = r.msg.match(/[0-9a-f]{64}/); if (m) selectBlock(m[0]); });
 }
 

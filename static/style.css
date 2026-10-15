@@ -261,3 +261,7 @@ td:first-child { white-space: nowrap; }
 }
 .copy-btn:hover { background: var(--surface-2); color: var(--text-primary); }
 .copy-btn.copied { color: var(--good); border-color: var(--good); }
+.copy-cell { display: inline-flex; align-items: flex-start; gap: 6px; }
+.copy-cell > span { min-width: 0; }
+td .copy-cell .copy-btn { opacity: 0.55; }
+tr:hover .copy-cell .copy-btn, .copy-cell .copy-btn:focus { opacity: 1; }

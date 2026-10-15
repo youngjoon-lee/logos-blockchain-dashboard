@@ -142,9 +142,9 @@ function eventTable(el, ctx, rows, cols) {
   wrap.className = "table-wrap short";
   el.replaceChildren(wrap);
   ctx.table(wrap, cols || [
-    { name: "time", get: (r) => ctx.fmtDateTime(r.ts) },
+    { name: "time", get: (r) => ctx.copyCell(ctx.fmtDateTime(r.ts), ctx.fmtDateTime(r.ts, true), "Copy time") },
     { name: "kind", get: (r) => r.kind },
-    { name: "message", get: (r) => r.msg, cls: "msg" },
+    { name: "message", get: (r) => ctx.copyCell(r.msg, r.msg, "Copy message"), cls: "msg" },
   ], rows.slice().reverse(), (r) => blockOf(r) && ctx.selectBlock(blockOf(r)));
 }
 
