@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logos Node</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Logos node</div>
+  <div id="pills" class="pills"></div>
+  <div class="topbar-right">
+    <span id="updated" class="muted"></span>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="overview" class="active">Overview</button>
+  <button data-tab="tree">Block tree</button>
+  <button data-tab="chain">Chain &amp; sync</button>
+  <button data-tab="activity">Activity</button>
+  <button data-tab="blend">Blend</button>
+  <button data-tab="leader">Leader &amp; PoW</button>
+  <button data-tab="network">Network</button>
+  <button data-tab="logs">Logs</button>
+  <button data-tab="config">Config</button>
+</nav>
+
+<div class="filters" id="filters">
+  <span class="muted">Range</span>
+  <div class="seg" id="range">
+    <button data-range="3600000">1h</button>
+    <button data-range="21600000" class="active">6h</button>
+    <button data-range="86400000">24h</button>
+    <button data-range="604800000">7d</button>
+    <button data-range="0">All</button>
+  </div>
+  <label class="muted"><input type="checkbox" id="autorefresh" checked> auto-refresh</label>
+</div>
+
+<main>
+  <section id="tab-overview" class="tab active">
+    <div class="stat-row" id="stats"></div>
+    <div class="grid2">
+      <div class="card"><h3>Chain height</h3><div class="chart" id="ov-height"></div></div>
+      <div class="card"><h3>Sync lag: wall-clock slot − tip slot</h3><div class="chart" id="ov-behind"></div></div>
+      <div class="card"><h3>LIB depth: tip slot − LIB slot</h3><div class="sub">LIB stays put while the chain is Bootstrapping; once Online it is the k-th ancestor of the tip.</div><div class="chart" id="ov-libdepth"></div></div>
+      <div class="card"><h3>Connected peers</h3><div class="chart" id="ov-peers"></div></div>
+      <div class="card"><h3>Log lines per bucket by level</h3><div class="chart" id="ov-levels"></div></div>
+    </div>
+    <div class="card"><h3>Recent blocks</h3><div id="ov-blocks" class="table-wrap short"></div></div>
+    <div class="card"><h3>Recent warnings &amp; errors</h3><div id="ov-warn" class="table-wrap"></div></div>
+    <div class="card"><h3>Collector health</h3><div id="ov-health" class="kv"></div></div>
+  </section>
+
+  <section id="tab-tree" class="tab">
+    <div class="tree-controls">
+      <span class="muted">Show last</span>
+      <div class="seg" id="tree-window">
+        <button data-w="100">100</button>
+        <button data-w="300" class="active">300</button>
+        <button data-w="1000">1000</button>
+        <button data-w="5000">5000</button>
+      </div>
+      <span class="muted">heights</span>
+      <button id="tree-older" class="btn">◀ older</button>
+      <button id="tree-newer" class="btn">newer ▶</button>
+      <button id="tree-latest" class="btn">latest</button>
+      <button id="tree-zoom-out" class="btn" title="zoom out">−</button>
+      <button id="tree-zoom-in" class="btn" title="zoom in">+</button>
+      <input id="tree-search" class="search" placeholder="jump to block id / height / slot">
+      <span id="tree-info" class="muted"></span>
+    </div>
+    <div class="card"><h3>Node phases over time</h3><div id="phase-strip"></div></div>
+    <div class="tree-legend" id="tree-legend"></div>
+    <div class="tree-layout">
+      <div class="tree-scroll" id="tree-scroll"><svg id="tree-svg"></svg></div>
+      <aside class="block-panel" id="block-panel"><div class="muted">Click a block to see its details.</div></aside>
+    </div>
+    <div class="card"><h3>Reorgs observed live</h3><div id="tree-reorgs" class="table-wrap"></div></div>
+  </section>
+
+  <section id="tab-chain" class="tab"><div id="plots-chain" class="grid2"></div></section>
+  <section id="tab-activity" class="tab"><div id="plots-activity" class="grid2"></div></section>
+  <section id="tab-blend" class="tab"><div id="plots-blend" class="grid2"></div></section>
+  <section id="tab-leader" class="tab"><div id="plots-leader" class="grid2"></div></section>
+  <section id="tab-network" class="tab"><div id="plots-network" class="grid2"></div></section>
+
+  <section id="tab-logs" class="tab">
+    <div class="grid2">
+      <div class="card"><h3>Log lines by category</h3><div class="chart" id="lg-cats"></div></div>
+      <div class="card"><h3>Matched events by kind</h3><div id="lg-kinds" class="table-wrap short"></div></div>
+    </div>
+    <div class="card">
+      <h3>Event search</h3>
+      <div class="row">
+        <input id="ev-grep" class="search" placeholder="text contains…">
+        <select id="ev-level"><option value="">all levels</option><option>ERROR</option><option>WARN</option><option>INFO</option><option>DEBUG</option></select>
+        <select id="ev-kind"><option value="">all kinds</option></select>
+        <button id="ev-go" class="btn">Search</button>
+      </div>
+      <div id="ev-table" class="table-wrap"></div>
+    </div>
+    <div class="card"><h3>Most frequent messages (normalized)</h3><div id="lg-templates" class="table-wrap"></div></div>
+    <div class="card">
+      <h3>Live tail <span id="tail-file" class="muted"></span> <span class="muted">· raw log lines, timestamps in UTC</span></h3>
+      <div class="row"><input id="tail-grep" class="search" placeholder="filter…"><button id="tail-go" class="btn">Refresh</button></div>
+      <pre id="tail" class="tail"></pre>
+    </div>
+  </section>
+
+  <section id="tab-config" class="tab">
+    <div class="config-layout">
+      <div class="card config-files"><h3>Files</h3><div id="cfg-files"></div></div>
+      <div class="card config-view"><h3 id="cfg-title">Select a file</h3><div id="cfg-note" class="muted"></div>
+        <div class="row cfg-tools"><input id="cfg-filter" class="search" placeholder="filter keys / values…"><div id="cfg-sections" class="cfg-sections"></div></div>
+        <pre id="cfg-content" class="code"></pre></div>
+    </div>
+  </section>
+</main>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
