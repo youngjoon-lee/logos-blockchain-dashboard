@@ -57,7 +57,7 @@ A dashboard for one logos-blockchain node (target version 0.3.x). It runs next t
 
 ## Testing
 
-CI (`.github/workflows/ci.yml`, Python 3.9/3.11/3.13) runs these on every push and PR; run them locally before committing:
+CI (`.github/workflows/ci.yml`, Python 3.9 and 3.13) runs these on every push and PR; run them locally before committing:
 
 ```bash
 python3 -m py_compile dashboard.py logrules.py dev/*.py

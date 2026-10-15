@@ -14,8 +14,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.9: oldest supported (Raspberry Pi OS bullseye); 3.11: Pi OS bookworm.
-        python: ["3.9", "3.11", "3.13"]
+        # Oldest supported (Raspberry Pi OS bullseye ships 3.9) and newest.
+        python: ["3.9", "3.13"]
     steps:
       - uses: actions/checkout@v4
 
