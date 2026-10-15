@@ -65,6 +65,14 @@ function lvl(level) {
   return text("span", level, "lvl " + level);
 }
 
+function fmtBytes(n) {
+  if (n == null) return "–";
+  const u = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return (i ? n.toFixed(n >= 100 ? 0 : 1) : n) + " " + u[i];
+}
+
 function fmtTs(ms) {
   return fmtDateTime(ms, true);
 }
@@ -176,6 +184,13 @@ async function renderOverview() {
   const net = snap("network");
   if (net) stat(stats, "Peers", fmtNum(net.n_peers), net.n_connections + " connections · " + net.n_pending_connections + " pending");
   stat(stats, "Blocks known", fmtInt(st.blocks.n || 0), fmtNum(st.non_canonical_known) + " off the canonical chain");
+  const dk = st.disk;
+  if (dk) {
+    const fs = dk.filesystems || [];
+    const free = fs.length ? Math.min(...fs.map((f) => f.free)) : null;
+    stat(stats, "Dashboard DB", fmtBytes(dk.db_bytes),
+      `node state ${fmtBytes(dk.node_state_bytes)} · logs ${fmtBytes(dk.node_logs_bytes)}` + (free != null ? ` · ${fmtBytes(free)} free` : ""));
+  }
   stat(stats, "Reorgs seen", fmtNum(st.reorgs.n || 0), st.reorgs.d ? "deepest " + st.reorgs.d + " blocks" : "since dashboard start");
   const ver = snap("version");
   if (ver) stat(stats, "Version", typeof ver === "string" ? ver : ver.version || JSON.stringify(ver).slice(0, 24));
@@ -224,6 +239,13 @@ async function renderOverview() {
   add("Logs dir", st.logs_dir);
   add("Log files parsed", st.log_files.length + " files · " + fmtNum(st.events_total) + " matched events · scanned " + timeAgo(h.logs_last_scan_ms) + (h.logs_error ? " · " + h.logs_error : ""));
   add("OpenMetrics", h.metrics || "–");
+  if (st.disk) {
+    const dk = st.disk;
+    add("Disk usage", `dashboard DB ${fmtBytes(dk.db_bytes)} (WAL ${fmtBytes(dk.db_wal_bytes)}) at ${dk.db_path} · node state ${fmtBytes(dk.node_state_bytes)} · node logs ${fmtBytes(dk.node_logs_bytes)}`);
+    for (const f of dk.filesystems || []) {
+      add("Disk (" + f.label + ")", `${fmtBytes(f.free)} free of ${fmtBytes(f.total)} (${((100 * (f.total - f.free)) / f.total).toFixed(0)}% used) · ${f.path}`);
+    }
+  }
   add("Data dir", st.data_dir);
 }
 

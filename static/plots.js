@@ -637,6 +637,16 @@ export const PLOT_TABS = {
       render: (el, ctx) => sampleFamily(el, ctx, "metrics.", { onlyChanging: true, max: 36, emptyMsg: "No OpenMetrics samples. See “Collector health” on the Overview tab." }),
     },
     {
+      title: "Disk usage",
+      sub: "Recorded every 10 minutes: the dashboard database, the node's state and log folders, and free space on the fullest disk.",
+      wide: true,
+      render: (el, ctx) => samples(el, ctx, [
+        { name: "dashboard DB", series: "disk.dashboard_db_bytes", color: S(1), step: true },
+        { name: "node state", series: "disk.node_state_bytes", color: S(2), step: true },
+        { name: "node logs", series: "disk.node_logs_bytes", color: S(3), step: true },
+      ], { yFmt: (v) => (v >= 1073741824 ? (v / 1073741824).toFixed(1) + " GB" : (v / 1048576).toFixed(0) + " MB"), emptyMsg: "No disk samples yet (first one is taken at dashboard start, then every 10 minutes)." }),
+    },
+    {
       title: "Explore any collected series",
       wide: true,
       render: async (el, ctx) => {

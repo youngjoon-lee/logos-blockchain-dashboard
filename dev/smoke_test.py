@@ -67,6 +67,9 @@ def main():
         st = wait_until(lambda: (lambda s: s if s["blocks"].get("n") and s["events_total"] else None)(
             get(dash_port, "/api/status")), "dashboard collects blocks and log events")
         check(st["health"]["api_ok"], "node API reachable")
+        dk = st.get("disk") or {}
+        check(dk.get("db_bytes", 0) > 0 and dk.get("node_logs_bytes", 0) > 0 and dk.get("filesystems"),
+              "disk usage reported (db %s bytes)" % dk.get("db_bytes"))
         check(st["log_files"] and all(f["name"].startswith("logos-blockchain.log") for f in st["log_files"]),
               "only the node's log files are parsed (%d files)" % len(st["log_files"]))
         wait_until(lambda: get(dash_port, "/api/status")["health"]["stream_connected"], "block stream connected")

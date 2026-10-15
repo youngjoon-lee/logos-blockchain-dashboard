@@ -657,6 +657,14 @@ class Collector:
                 self.db.conn().execute("PRAGMA wal_checkpoint(TRUNCATE)")
         except sqlite3.OperationalError:
             pass
+        du = self.disk.get()
+        ts = now_ms()
+        rows = [(ts, "disk.dashboard_db_bytes", du["db_bytes"]), (ts, "disk.node_logs_bytes", du["node_logs_bytes"])]
+        if du["node_state_bytes"] is not None:
+            rows.append((ts, "disk.node_state_bytes", du["node_state_bytes"]))
+        if du["filesystems"]:
+            rows.append((ts, "disk.free_bytes", min(f["free"] for f in du["filesystems"])))
+        self.db.write(lambda c: c.executemany("INSERT INTO samples(ts,name,value) VALUES(?,?,?)", rows))
         time.sleep(600)
 
     # ---- OpenMetrics via logosctl (optional) -----------------------------------
@@ -1047,6 +1055,69 @@ def commit_log_batch(db, key, pos, done, events, stats, tmpl, recovering=False):
 
 
 # --------------------------------------------------------------------------
+# Disk usage
+# --------------------------------------------------------------------------
+
+
+def dir_size(path):
+    total = 0
+    for root, _dirs, files in os.walk(path or ""):
+        for f in files:
+            try:
+                total += os.lstat(os.path.join(root, f)).st_size
+            except OSError:
+                pass
+    return total
+
+
+class DiskUsage:
+    """Sizes of the dashboard database, the node's state and logs, and free
+    space; directory walks are cached for a minute."""
+
+    def __init__(self, db_path, state_dir, logs_dir, log_prefix):
+        self.db_path, self.state_dir, self.logs_dir, self.log_prefix = db_path, state_dir, logs_dir, log_prefix
+        self.cache = (0, None)
+
+    def get(self):
+        ts, val = self.cache
+        if val is not None and time.time() - ts < 60:
+            return val
+        db = {}
+        for suffix in ("", "-wal", "-shm"):
+            try:
+                db[suffix or "main"] = os.path.getsize(self.db_path + suffix)
+            except OSError:
+                db[suffix or "main"] = 0
+        logs = 0
+        for p in log_files_in(self.logs_dir, self.log_prefix):
+            try:
+                logs += os.path.getsize(p)
+            except OSError:
+                pass
+        out = {
+            "db_path": self.db_path,
+            "db_bytes": sum(db.values()),
+            "db_wal_bytes": db["-wal"],
+            "node_state_bytes": dir_size(self.state_dir) if self.state_dir and os.path.isdir(self.state_dir) else None,
+            "node_logs_bytes": logs,
+            "filesystems": [],
+        }
+        seen = set()
+        for label, path in (("dashboard", os.path.dirname(self.db_path)), ("node", self.state_dir or self.logs_dir)):
+            if not path or not os.path.exists(path):
+                continue
+            dev = os.stat(path).st_dev
+            if dev in seen:
+                out["filesystems"][-1]["label"] += " + " + label
+                continue
+            seen.add(dev)
+            du = shutil.disk_usage(path)
+            out["filesystems"].append({"label": label, "path": path, "total": du.total, "free": du.free})
+        self.cache = (time.time(), out)
+        return out
+
+
+# --------------------------------------------------------------------------
 # Config files
 # --------------------------------------------------------------------------
 
@@ -1171,6 +1242,7 @@ class App:
             "reorgs": dict(reorgs) if reorgs else {},
             "log_files": [dict(r) for r in self.db.q("SELECT * FROM log_files ORDER BY name")],
             "events_total": self.db.one("SELECT count(*) FROM events")[0],
+            "disk": self.collector.disk.get(),
         }
 
     PHASE_NAMES = {
@@ -1742,6 +1814,7 @@ def main():
         chain.lib = last[0]
 
     collector = Collector(db, api, chain, logs_dir, log_prefix, args.poll, args.metrics_cmd, args.keep_block_json)
+    collector.disk = DiskUsage(db_path, node_cfg["state_dir"], logs_dir, log_prefix)
     collector.start()
 
     app = App(db, api, chain, collector, data_dir, logs_dir, node_cfg["state_dir"], args.show_secrets)
