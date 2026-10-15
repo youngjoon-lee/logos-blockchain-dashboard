@@ -88,6 +88,7 @@ RULES = [
     R("orphan_error", "sync", r"^(Error while starting download|Error while fetching blocks|Failed to enqueue block for orphan)"),
     R("sync_request", "sync", r"^Requesting blocks from peer"),  # (D)
     R("sync_tip_request", "sync", r"^Requesting chain tip from peer"),  # (D)
+    R("sync_rejected", "sync", r"^rejecting chainsync event"),  # (D) not serving peers while bootstrapping
     R("sync_event_dropped", "sync", r"^failed to send chainsync event: SendError\((?P<request>\w+)"),
     R("ibd_collecting_tips", "sync", r"^collecting unsynced tips from (?P<peers>\d+) peers"),  # (D)
     R("sync_serve", "sync", r"^(Providing blocks|Prepared block stream)"),  # (D)
