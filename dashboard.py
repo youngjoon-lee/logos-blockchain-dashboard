@@ -581,7 +581,11 @@ class Collector:
                 if isinstance(ci, dict) and "cryptarchia_info" in ci:
                     info = ci["cryptarchia_info"]
                     self.chain.add_anchor(c, info["tip"], info["height"])
-                    self.chain.observe_tip_lib(c, info["tip"], info["slot"], info["lib"], info["lib_slot"], ts)
+                    # The stream reports tip/LIB after every block in processing
+                    # order; polls race with it and would record phantom reorgs.
+                    # Use them only while the stream is down.
+                    if not self.health["stream_connected"]:
+                        self.chain.observe_tip_lib(c, info["tip"], info["slot"], info["lib"], info["lib_slot"], ts)
                     c.execute(
                         "INSERT INTO samples(ts,name,value) VALUES(?,?,?)",
                         (ts, "cryptarchia.phase_code", PHASES.get(ci.get("phase"), -1)),
