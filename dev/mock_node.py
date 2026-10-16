@@ -157,7 +157,10 @@ class H(http.server.BaseHTTPRequestHandler):
         if p == "/blend/info":
             return self.j({"mode": "Core", "members": random.randint(10, 12), "session": now_slot // 500})
         if p == "/pow/status":
-            return self.j({"mining": True, "auto_claim": {"enabled": True, "claimable": random.randint(0, 5)}})
+            # Shape of 0.3.2 PoWStatus; the balance grows towards the threshold.
+            return self.j({"is_mining": True, "are_rewards_enabled": True, "auto_claim": {
+                "is_armed": True, "tick": {"unit": "seconds", "value": 10},
+                "targets": [{"public_key": "ab" * 32, "threshold": 2000000000, "balance": 1000000 * now_slot}]}})
         if p == "/version":
             return self.j("0.3.2-mock")
         if p == "/mempool/view":

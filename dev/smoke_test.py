@@ -58,6 +58,9 @@ def main():
     try:
         subprocess.run([sys.executable, os.path.join(ROOT, "dev", "gen_logs.py"), node_dir, str(api_port)], check=True)
         procs.append(subprocess.Popen([sys.executable, os.path.join(ROOT, "dev", "mock_node.py"), str(api_port)]))
+        # Stands in for logosctl's `logos_host ... --instance-persistence-path <node dir>`.
+        procs.append(subprocess.Popen([sys.executable, "-c", "import time; time.sleep(600)",
+                                       "--instance-persistence-path", node_dir]))
         procs.append(subprocess.Popen([
             sys.executable, os.path.join(ROOT, "dashboard.py"),
             "--data-dir", node_dir, "--host", "127.0.0.1", "--port", str(dash_port),
@@ -110,6 +113,12 @@ def main():
 
         phases = get(dash_port, "/api/phases")
         check([p[2] for p in phases["phase"]][:3] == ["IBD", "PBP", "Following"], "phase intervals from logs")
+
+        names = get(dash_port, "/api/series_names")
+        check("pow.target.%s.balance" % ("ab" * 32) in names and "pow.target.%s.threshold" % ("ab" * 32) in names,
+              "auto-claim target balance and threshold sampled")
+        up = wait_until(lambda: get(dash_port, "/api/status")["health"].get("node_uptime_s"), "node process uptime found")
+        check(isinstance(up, int) and 0 < up < 600, "node process uptime (%ss)" % up)
 
         cfg = get(dash_port, "/api/config")
         paths = [f["path"] for f in cfg["files"]]

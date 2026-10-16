@@ -9,7 +9,8 @@ It is a single Python 3 script with no dependencies: no pip, no build step, no C
 - **Block tree**: every block the node processed, forks included, with the canonical chain, LIB, the immutable range, reorgs, and blocks proposed by this node. Bands show the chain phase (Genesis wait, IBD, PBP, Following), Bootstrapping/Online mode and epoch for each block. Click a block for its header, transactions and ops, ledger events, exact receive/apply times and log lines.
 - **Chain & sync**: tip/LIB/wall-clock slots, phase timeline, IBD and startup recovery, blocks applied per minute, arrival delay, processing time, reorgs, rejected blocks by reason, chain sync and orphan handling.
 - **Activity**: ops by type over the whole canonical history, block production rate, block sizes, transactions per block.
-- **Blend, Leader & PoW, Network**: blend mode/connections/failures, own proposals, leader wins, PoW tickets and claims, peers, plus every numeric field the API returns.
+- **Blend, Leader & PoW, Network**: blend mode/connections/failures, own proposals, leader wins, PoW tickets and claims, auto-claim targets with balance vs threshold, peers, plus every numeric field the API returns.
+- **Node process uptime** (Overview): restarts show as drops to zero. Needs the dashboard to run on the same machine as the node.
 - **Logs**: line counts by level and subsystem, matched events, most frequent messages, search, live tail.
 - **Config**: the YAML files in the node folder, with secret keys hidden.
 
@@ -79,6 +80,7 @@ loginctl enable-linger $USER   # keep running after logout
 | Block details on click | `/cryptarchia/blocks/<id>`, `/cryptarchia/blocks/<id>/events` |
 | Phases, IBD, recovery, chain sync, proposals, PoW, blend, SDP, epochs, every warning/error, exact block times | node log files, read incrementally every 10 s (rotated and `.gz` too). Rules: [`logrules.py`](logrules.py). When the rules change, log files still on disk are re-read. |
 | Node metrics (optional) | `--metrics-cmd`, if `tracing.metrics.enable_open_metrics: true` |
+| Node process uptime | `ps`: the `logos-blockchain-node` process whose config is in the node folder, or logosctl's `logos_host --instance-persistence-path <node folder>` |
 | Config | YAML files in the node folder (and one level below); `node_key`, KMS `!Zk`/`!Ed25519` values, keystore `secret_keys` and other secret-looking keys are hidden |
 
 ## More detail from the logs (DEBUG)

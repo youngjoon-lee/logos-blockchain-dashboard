@@ -194,9 +194,17 @@ async function renderOverview() {
   stat(stats, "Reorgs seen", fmtNum(st.reorgs.n || 0), st.reorgs.d ? "deepest " + st.reorgs.d + " blocks" : "since dashboard start");
   const ver = snap("version");
   if (ver) stat(stats, "Version", typeof ver === "string" ? ver : ver.version || JSON.stringify(ver).slice(0, 24));
+  const up = st.health.node_uptime_s;
+  if (up != null) stat(stats, "Node uptime", up ? fmtDuration(up) : "not running", up ? "started " + fmtDateTime(st.now_ms - up * 1000) : "process gone");
+  const targets = snap("pow")?.auto_claim?.targets || [];
+  if (targets.length) {
+    const tg = targets.reduce((a, b) => ((a.balance ?? 0) / a.threshold <= (b.balance ?? 0) / b.threshold ? a : b));
+    stat(stats, "Auto-claim", tg.balance == null ? "unknown" : ((100 * tg.balance) / Math.max(1, tg.threshold)).toFixed(1) + "%",
+      `${fmtNum(tg.balance)} of ${fmtNum(tg.threshold)} · ${short(tg.public_key)}` + (targets.length > 1 ? ` · lowest of ${targets.length} targets` : ""));
+  }
 
   const s = since();
-  const series = await api(`/api/series?since=${s}&names=cryptarchia.cryptarchia_info.height,cryptarchia.slots_behind,network.n_peers,network.n_connections,cryptarchia.tip_minus_lib_slots`);
+  const series = await api(`/api/series?since=${s}&names=cryptarchia.cryptarchia_info.height,cryptarchia.slots_behind,network.n_peers,network.n_connections,cryptarchia.tip_minus_lib_slots,node.uptime_s`);
   lineChart($("#ov-height"), [{ name: "height", points: series["cryptarchia.cryptarchia_info.height"], color: css("--series-1") }], { zero: false });
   lineChart($("#ov-behind"), [{ name: "slots behind", points: series["cryptarchia.slots_behind"], color: css("--series-2") }]);
   lineChart($("#ov-libdepth"), [{ name: "tip slot − LIB slot", points: series["cryptarchia.tip_minus_lib_slots"], color: css("--series-7") }]);
@@ -204,6 +212,10 @@ async function renderOverview() {
     { name: "peers", points: series["network.n_peers"], color: css("--series-1"), step: true },
     { name: "connections", points: series["network.n_connections"], color: css("--series-3"), step: true },
   ]);
+  lineChart($("#ov-uptime"), [{ name: "uptime", points: series["node.uptime_s"] || [], color: css("--series-1") }], {
+    yFmt: fmtDuration,
+    emptyMsg: "No node process found on this machine (the dashboard looks for the node of its data dir).",
+  });
 
   const ls = await api(`/api/logsummary?since=${s}`);
   renderLevelBars($("#ov-levels"), ls.stats, s);

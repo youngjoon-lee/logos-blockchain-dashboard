@@ -133,6 +133,44 @@ async function sampleFamily(el, ctx, prefix, opts = {}) {
   }
 }
 
+// Current auto-claim targets (table) and their balance vs threshold over time.
+async function autoClaimTargets(el, ctx) {
+  el.replaceChildren();
+  const pow = ctx.snap("pow");
+  const ac = pow?.auto_claim;
+  if (!ac) {
+    const d = ctx.text("div", "No /pow/status yet (the PoW service answers once the chain is online).", "viz-empty");
+    return el.appendChild(d);
+  }
+  const tick = ac.tick ? `every ${ac.tick.value} ${ac.tick.unit}` : "";
+  el.appendChild(ctx.text("div", `mining ${pow.is_mining ? "on" : "off"} · auto-claim ${ac.is_armed ? "armed" : "not armed"}${tick ? " · checks " + tick : ""} · rewards ${pow.are_rewards_enabled ? "enabled" : "disabled"}`, "viz-note"));
+  const targets = ac.targets || [];
+  if (!targets.length) return el.appendChild(ctx.text("div", "No auto-claim targets configured (pow.auto_claim.targets in user_config.yaml).", "viz-empty"));
+  const wrap = ctx.text("div", null, "table-wrap short");
+  el.appendChild(wrap);
+  const int = (v) => (v == null ? "unknown" : Number(v).toLocaleString());
+  ctx.table(wrap, [
+    { name: "target public key", get: (t) => ctx.idCell(t.public_key, 16), cls: "nowrap" },
+    { name: "balance", get: (t) => int(t.balance), cls: "num" },
+    { name: "threshold", get: (t) => int(t.threshold), cls: "num" },
+    { name: "progress", get: (t) => (t.balance == null ? "–" : ((100 * t.balance) / Math.max(1, t.threshold)).toFixed(2) + "%"), cls: "num" },
+    { name: "still needed", get: (t) => (t.balance == null ? "–" : int(Math.max(0, t.threshold - t.balance))), cls: "num" },
+  ], targets);
+
+  const names = targets.flatMap((t) => [`pow.target.${t.public_key}.balance`, `pow.target.${t.public_key}.threshold`]);
+  const data = await ctx.get(`/api/series?since=${ctx.since()}&names=${names.join(",")}`);
+  const many = targets.length > 1;
+  const series = targets.flatMap((t, i) => [
+    { name: (many ? short(t.public_key) + " " : "") + "balance", color: ctx.css(S(1 + 2 * i)), step: true, points: data[`pow.target.${t.public_key}.balance`] || [] },
+    { name: (many ? short(t.public_key) + " " : "") + "threshold", color: ctx.css(S(2 + 2 * i)), step: true, points: data[`pow.target.${t.public_key}.threshold`] || [] },
+  ]).slice(0, 8);
+  const c = ctx.text("div", null, "chart");
+  el.appendChild(c);
+  ctx.lineChart(c, series, { emptyMsg: "No balance samples yet (recorded with every /pow/status poll)." });
+}
+
+const short = (id) => (id ? id.slice(0, 8) + "…" + id.slice(-4) : "–");
+
 async function blocks(ctx) {
   return ctx.get("/api/blocks");
 }
@@ -513,9 +551,15 @@ export const PLOT_TABS = {
       ]),
     },
     {
+      title: "PoW auto-claim targets",
+      sub: "From /pow/status. Auto-claim pays rewards to the target furthest below its threshold and stops mining once every target has reached its threshold. Amounts in the ledger's smallest unit.",
+      wide: true,
+      render: (el, ctx) => autoClaimTargets(el, ctx),
+    },
+    {
       title: "PoW status (node API /pow/status)",
       wide: true,
-      render: (el, ctx) => sampleFamily(el, ctx, "pow.", { emptyMsg: "No /pow/status samples." }),
+      render: (el, ctx) => sampleFamily(el, ctx, "pow.", { exclude: ["pow.target."], emptyMsg: "No /pow/status samples." }),
     },
     {
       title: "SDP activity",

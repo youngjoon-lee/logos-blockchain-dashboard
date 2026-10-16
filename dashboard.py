@@ -391,6 +391,7 @@ class Collector:
         }
         self.backfill_lock = threading.Lock()
         self.dead_gaps = set()
+        self.node_process = None  # NodeProcess, set by main()
 
     def start(self):
         rebuild_logs_if_rules_changed(self.db, self.logs_dir, self.log_prefix)
@@ -566,6 +567,8 @@ class Collector:
                     results[name] = {"_error": str(e)}
             self.health["api_ok"] = ok
             self.health["api_error"] = None if ok else results.get("cryptarchia", {}).get("_error")
+            uptime = self.node_process.uptime() if self.node_process else None
+            self.health["node_uptime_s"] = uptime
 
             def w(c):
                 for name, val in results.items():
@@ -576,6 +579,12 @@ class Collector:
                     if isinstance(val, dict) and "_error" in val:
                         continue
                     for k, v in flatten_numbers(name, val):
+                        c.execute("INSERT INTO samples(ts,name,value) VALUES(?,?,?)", (ts, k, v))
+                if uptime is not None:
+                    c.execute("INSERT INTO samples(ts,name,value) VALUES(?,?,?)", (ts, "node.uptime_s", uptime))
+                pow_status = results.get("pow")
+                if isinstance(pow_status, dict) and "_error" not in pow_status:
+                    for k, v in pow_target_samples(pow_status):
                         c.execute("INSERT INTO samples(ts,name,value) VALUES(?,?,?)", (ts, k, v))
                 ci = results.get("cryptarchia")
                 if isinstance(ci, dict) and "cryptarchia_info" in ci:
@@ -764,6 +773,20 @@ def flatten_numbers(prefix, val, depth=0):
             out.extend(flatten_numbers(prefix + "." + str(k), v, depth + 1))
     elif isinstance(val, list):
         out.append((prefix + ".len", float(len(val))))
+    return out
+
+
+def pow_target_samples(status):
+    """`pow.target.<public key>.balance|threshold` for every auto-claim target
+    in a /pow/status response (a list, which flatten_numbers only counts)."""
+    out = []
+    for t in ((status.get("auto_claim") or {}).get("targets") or []):
+        pk = t.get("public_key")
+        if not isinstance(pk, str):
+            continue
+        for k in ("balance", "threshold"):
+            if isinstance(t.get(k), (int, float)) and not isinstance(t.get(k), bool):
+                out.append(("pow.target.%s.%s" % (pk, k), float(t[k])))
     return out
 
 
@@ -1670,23 +1693,94 @@ def running_node():
         if not parts or not os.path.basename(parts[0]).startswith("logos-blockchain-node"):
             continue
         cfg = next((a for a in parts[1:] if a.endswith((".yaml", ".yml"))), "user_config.yaml")
-        cwd = None
-        if os.path.isdir("/proc/%s" % pid):
-            try:
-                cwd = os.readlink("/proc/%s/cwd" % pid)
-            except OSError:
-                pass
-        else:
-            try:
-                lo = subprocess.run(["lsof", "-a", "-p", pid, "-d", "cwd", "-Fn"], capture_output=True, text=True, timeout=5).stdout
-                cwd = next((l[1:] for l in lo.splitlines() if l.startswith("n")), None)
-            except Exception:
-                pass
+        cwd = proc_cwd(pid)
         if cwd:
             path = os.path.join(cwd, cfg)
             if os.path.isfile(path):
                 return os.path.dirname(os.path.abspath(path)), cwd
     return None
+
+
+def parse_etime(s):
+    """`ps -o etime` ([[dd-]hh:]mm:ss) → seconds."""
+    days, _, rest = s.strip().rpartition("-")
+    secs = 0
+    for part in rest.split(":"):
+        secs = secs * 60 + int(part)
+    return secs + int(days or 0) * 86400
+
+
+class NodeProcess:
+    """Finds the process running the node of `data_dir` and reports its
+    uptime: a `logos-blockchain-node <config>` whose config is in `data_dir`,
+    or logosctl's `logos_host ... --instance-persistence-path <data_dir>`."""
+
+    RESCAN_S = 30
+
+    def __init__(self, data_dir):
+        self.data_dir = os.path.realpath(data_dir) if data_dir else None
+        self.pid = None
+        self.seen = False
+        self.last_scan = 0.0
+
+    def find(self):
+        try:
+            out = subprocess.run(["ps", "-axo", "pid=,args="], capture_output=True, text=True, timeout=5).stdout
+        except Exception:
+            return None
+        for line in out.splitlines():
+            pid, _, cmd = line.strip().partition(" ")
+            parts = cmd.split()
+            if not parts or not pid.isdigit():
+                continue
+            if any(os.path.realpath(a) == self.data_dir for a in parts[1:] if a.startswith("/")):
+                return int(pid)
+            if not os.path.basename(parts[0]).startswith("logos-blockchain-node"):
+                continue
+            cfg = next((a for a in parts[1:] if a.endswith((".yaml", ".yml"))), "user_config.yaml")
+            if not os.path.isabs(cfg):
+                cwd = proc_cwd(pid)
+                if not cwd:
+                    continue
+                cfg = os.path.join(cwd, cfg)
+            if os.path.realpath(os.path.dirname(cfg)) == self.data_dir:
+                return int(pid)
+        return None
+
+    def uptime(self):
+        """Seconds since the node process started; 0 once a process seen
+        earlier is gone; None if no node process was ever found."""
+        if not self.data_dir:
+            return None
+        if self.pid:
+            try:
+                out = subprocess.run(["ps", "-o", "etime=", "-p", str(self.pid)], capture_output=True, text=True, timeout=5).stdout
+                if out.strip():
+                    return parse_etime(out)
+            except Exception:
+                pass
+            self.pid = None
+            self.last_scan = 0.0  # gone: look for its successor right away
+        if time.time() - self.last_scan >= self.RESCAN_S:
+            self.last_scan = time.time()
+            self.pid = self.find()
+            if self.pid:
+                self.seen = True
+                return self.uptime()
+        return 0 if self.seen else None
+
+
+def proc_cwd(pid):
+    if os.path.isdir("/proc/%s" % pid):
+        try:
+            return os.readlink("/proc/%s/cwd" % pid)
+        except OSError:
+            return None
+    try:
+        lo = subprocess.run(["lsof", "-a", "-p", str(pid), "-d", "cwd", "-Fn"], capture_output=True, text=True, timeout=5).stdout
+        return next((l[1:] for l in lo.splitlines() if l.startswith("n")), None)
+    except Exception:
+        return None
 
 
 def default_data_dir():
@@ -1815,6 +1909,7 @@ def main():
 
     collector = Collector(db, api, chain, logs_dir, log_prefix, args.poll, args.metrics_cmd, args.keep_block_json)
     collector.disk = DiskUsage(db_path, node_cfg["state_dir"], logs_dir, log_prefix)
+    collector.node_process = NodeProcess(data_dir)
     collector.start()
 
     app = App(db, api, chain, collector, data_dir, logs_dir, node_cfg["state_dir"], args.show_secrets)
